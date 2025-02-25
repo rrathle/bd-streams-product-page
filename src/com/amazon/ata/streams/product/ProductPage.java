@@ -7,13 +7,8 @@ import com.amazon.ata.streams.product.types.ProductV2;
 import com.amazon.ata.streams.product.types.ShippingProgramEnum;
 import com.amazon.ata.streams.product.types.SortByEnum;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.amazon.ata.streams.product.types.SortByEnum.PRICE_HIGH_TO_LOW;
 import static com.amazon.ata.streams.product.types.SortByEnum.PRICE_LOW_TO_HIGH;
@@ -41,17 +36,23 @@ public class ProductPage {
      *
      * Golf score: 10
      * Par: 4
-     * Your score:
+     * Your score: 4
      *
      * @return An Optional with the winning BuyingOption, or empty if none.
      */
     public Optional<ProductV2.BuyingOption> getFirstBuyingOption() {
-        List<ProductV2.BuyingOption> buyingOptions = productV2.buyingOptions();
-        if (!buyingOptions.isEmpty()) {
-            return buyingOptions.stream()
-                .findFirst();
-        }
-        return Optional.empty();
+//        List<ProductV2.BuyingOption> buyingOptions = productV2.buyingOptions();
+//        if (!buyingOptions.isEmpty()) {
+//            return buyingOptions.stream()
+//                .findFirst();
+//        }
+//        return Optional.empty();
+
+        return productV2.buyingOptions() //return and  a method gives us 2
+                .stream()               // method 1
+                .findFirst();           // method 1
+
+
     }
 
     /**
@@ -68,19 +69,26 @@ public class ProductPage {
      * @return Optional containing the image URL, or empty if no image exists.
      */
     public Optional<String> extractMainImageUrl(Integer longestDimension) {
-        Optional<ProductImagesV2> productImagesOptional = productV2.productImages();
-        if (productImagesOptional.isPresent()) {
-            ProductImagesV2 productImages = productImagesOptional.get();
-            List<ProductImagesV2.Image> images = productImages.images();
-            for (ProductImagesV2.Image image : images) {
-                String url = extractImageUrl(image, longestDimension);
-                if (url != null) {
-                    return Optional.of(url);
-                }
-            }
-        }
-
-        return Optional.empty();
+//        Optional<ProductImagesV2> productImagesOptional = productV2.productImages();
+//        if (productImagesOptional.isPresent()) {
+//            ProductImagesV2 productImages = productImagesOptional.get();
+//            List<ProductImagesV2.Image> images = productImages.images();
+//            for (ProductImagesV2.Image image : images) {
+//                String url = extractImageUrl(image, longestDimension);
+//                if (url != null) {
+//                    return Optional.of(url);
+//                }
+//            }
+//        }
+//
+//        return Optional.empty();
+        return productV2.productImages()                                                //2 return and method call
+                .map(ProductImagesV2::images)                                           //1 method reference
+                .orElse(Collections.emptyList())                                        //1 method reference
+                .stream()                                                               //1 method reference
+                .map(image -> extractImageUrl(image, longestDimension))                 //1 method reference
+                .filter(Objects::nonNull)                                               //1 method reference
+                .findFirst();                                                           //1 method reference
     }
 
     /**
@@ -88,27 +96,37 @@ public class ProductPage {
      *
      * Golf score: 24
      * Par: 11
-     * Your score:
+     * Your score: 11
      *
      * @param longestDimension the size of the image's longest dimension.
      * @return An Optional containing the URL of the image, or empty if no image exists.
      */
     public Optional<String> extractLookImageUrl(Integer longestDimension) {
-        Optional<ProductImagesV2> productImages = productV2.productImages();
-        if (productImages.isPresent()) {
-            ProductImagesV2 productImagesV2 = productImages.get();
-            List<ProductImagesV2.Image> images = productImagesV2.images();
-            for (ProductImagesV2.Image image : images) {
-                String variant = image.variant();
-                if (variant != null && variant.equals(LOOK_VARIANT)) {
-                    String url = extractImageUrl(image, longestDimension);
-                    if (url != null) {
-                        return Optional.of(url);
-                    }
-                }
-            }
-        }
-        return Optional.empty();
+//        Optional<ProductImagesV2> productImages = productV2.productImages();
+//        if (productImages.isPresent()) {
+//            ProductImagesV2 productImagesV2 = productImages.get();
+//            List<ProductImagesV2.Image> images = productImagesV2.images();
+//            for (ProductImagesV2.Image image : images) {
+//                String variant = image.variant();
+//                if (variant != null && variant.equals(LOOK_VARIANT)) {
+//                    String url = extractImageUrl(image, longestDimension);
+//                    if (url != null) {
+//                        return Optional.of(url);
+//                    }
+//                }
+//            }
+//        }
+//        return Optional.empty();
+
+        return productV2.productImages()
+                .map(ProductImagesV2::images)
+                .orElse(Collections.emptyList())
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(image -> LOOK_VARIANT.equals(image.variant()))
+                .map(image -> extractImageUrl(image, longestDimension))
+                .filter(Objects::nonNull)
+                .findFirst();
     }
 
     /**
@@ -121,31 +139,42 @@ public class ProductPage {
      *
      * Golf score: 22
      * Par: 24
-     * Your score:
+     * Your score: 18
      */
     public List<ProductV2> getSimilarProducts(final SortByEnum sortBy,
                                               final PriceRangeOption priceRange,
                                               final PrimeOption primeOption) {
 
-        Comparator<ProductV2> sorter = comparatorForSortBy.getOrDefault(sortBy, passthroughComparator());
-        final List<ProductV2> unorderedProducts = productV2.getSimilarProducts();
-        final List<ProductV2> matchingProducts = new ArrayList<>();
-        if (unorderedProducts != null) {
-            for (ProductV2 product : unorderedProducts) {
-                if (Objects.nonNull(product) &&
-                    product.isValid() &&
-                    priceRange.priceIsWithin(product.getPrice())) {
-                    for (ShippingProgramEnum shippingProgram : product.getShippingPrograms()) {
-                        if (primeOption.matches(shippingProgram)) {
-                            matchingProducts.add(product);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        matchingProducts.sort(sorter);
-        return matchingProducts;
+//        Comparator<ProductV2> sorter = comparatorForSortBy.getOrDefault(sortBy, passthroughComparator());
+//        final List<ProductV2> unorderedProducts = productV2.getSimilarProducts();
+//        final List<ProductV2> matchingProducts = new ArrayList<>();
+//        if (unorderedProducts != null) {
+//            for (ProductV2 product : unorderedProducts) {
+//                if (Objects.nonNull(product) &&
+//                    product.isValid() &&
+//                    priceRange.priceIsWithin(product.getPrice())) {
+//                    for (ShippingProgramEnum shippingProgram : product.getShippingPrograms()) {
+//                        if (primeOption.matches(shippingProgram)) {
+//                            matchingProducts.add(product);
+//                            break;
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//        matchingProducts.sort(sorter);
+//        return matchingProducts;
+        return Optional.ofNullable(productV2.getSimilarProducts())
+                .orElse(Collections.emptyList())
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(ProductV2::isValid)
+                .filter(product -> priceRange.priceIsWithin(product.getPrice()))
+                .filter(product -> product.getShippingPrograms().stream()
+                        .anyMatch(primeOption::matches))
+                .sorted(comparatorForSortBy.getOrDefault(sortBy, passthroughComparator()))
+                .collect(Collectors.toList());
+
     }
 
     /**
